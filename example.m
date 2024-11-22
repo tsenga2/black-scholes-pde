@@ -11,7 +11,8 @@ is_call = 1;
 d = 0;
 
 %% Generate surface
-[t_vals,S_vals,surface] = black_scholes_cov_explicit(N,M,Smin,Smax,T,K,volatility,r,d,is_call);
+%[t_vals,S_vals,surface] = black_scholes_cov_explicit(N,M,Smin,Smax,T,K,volatility,r,d,is_call);
+[t_vals,S_vals,surface] = black_scholes_naive_implicit(N,M,Smin,Smax,T,K,volatility,r,d,is_call);
 
 S_check = linspace(0,1.5*K,20);
 t_check = linspace(0,T,20);
