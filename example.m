@@ -24,7 +24,7 @@ for i=1:size(t_check,2)
 end
 
 %% Plot surface
-surf(S_checks,fliplr(t_checks),surf_check)
+surf(S_check,fliplr(t_check),surf_check)
 xlabel('Stock Price')
 ylabel('Time Until Maturity')
 title('Example Surface')
