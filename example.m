@@ -1,3 +1,8 @@
+
+clc
+clear all
+close all
+
 %% Definite initial constants
 N = 4000;
 M = 1000;
@@ -29,6 +34,20 @@ surf(S_check,fliplr(t_check),surf_check)
 xlabel('Stock Price')
 ylabel('Time Until Maturity')
 title('Example Surface')
+
+
+figure('Position', [100 100 800 400]);
+hold on;
+plot(S_check, surf_check(1,:), 'b-', 'LineWidth', 2, 'DisplayName', 't = 0 (Initial)');
+plot(S_check, surf_check(end,:), 'r--', 'LineWidth', 2, 'DisplayName', 't = T (Terminal)');
+plot([K K], [0 max(surf_check(1,:))], 'k--', 'LineWidth', 1, 'DisplayName', 'Strike Price');
+
+% Plot formatting
+xlabel('Stock Price (S)');
+ylabel('Option Price (V)');
+title('Call Option Price vs Stock Price');
+legend('show');
+grid on;
 
 %% Interpolate single point and display it
 S_check = 30;
