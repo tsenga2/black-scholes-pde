@@ -1,0 +1,359 @@
+\documentclass[]{beamer}
+\usetheme{Madrid}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{mathtools}
+\usepackage{tikz}
+
+\newenvironment{code}{\begin{semiverbatim}\footnotesize}{\end{semiverbatim}}
+
+\title{Solving One-Sector Growth Model\\Using Implicit Finite Difference Method}
+\author{Tatsuro Senga}
+\date{}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{The Economic Problem}
+    \begin{itemize}
+        \item Continuous-time optimal growth problem:
+        \[\max_{c(t)} \int_0^\infty e^{-r t} \frac{c(t)^{1-s}}{1-s} dt\]
+        subject to
+        \[\dot{k} = Ak^\alpha - \delta k - c\]
+        \item Parameters:
+        \begin{itemize}
+            \item $r$: discount rate
+            \item $s$: risk aversion
+            \item $\alpha$: capital share
+            \item $\delta$: depreciation rate
+            \item $A$: productivity
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Hamilton-Jacobi-Bellman (HJB) Equation}
+    \begin{itemize}
+        \item The HJB equation for this problem is:
+        \[r V(k) = \max_c \left\{\frac{c^{1-s}}{1-s} + V'(k)(Ak^\alpha - \delta k - c)\right\}\]
+        \item First-order condition for consumption:
+        \[c^{-s} = V'(k)\]
+        \item Optimal consumption:
+        \[c = (V'(k))^{-1/s}\]
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Discretization and Time Stepping}
+    \begin{itemize}
+        \item The implicit scheme starts with:
+        \[\frac{V_i^{n+1} - V_i^n}{\Delta} + r V_i^{n+1} = u(c_i^n) + (V_i^{n+1})'(Ak_i^\alpha - \delta k_i - c_i^n)\]
+        where
+        \[c_i^n = (V_i^n)'^{-1/s}\]
+    \end{itemize}
+    \begin{code}
+    % Initialize value function guess
+    V = (A*k.^alpha).^(1-s)/(1-s)/rho;
+    dV = zeros(I,1);  % Will store derivatives
+    \end{code}
+\end{frame}
+
+\begin{frame}{Grid and Index Notation}
+    \begin{itemize}
+        \item $i$ denotes position in capital grid:
+        \begin{itemize}
+            \item $i = 1,2,\ldots,I$ where $I$ is grid size
+            \item $V_i$ is value at $k_i$
+        \end{itemize}
+        \item $n$ denotes time iteration:
+        \begin{itemize}
+            \item $n = 0,1,2,\ldots$ until convergence
+            \item $V^n$ is value function at iteration $n$
+        \end{itemize}
+        \item Vector notation: $V^n = (V_1^n, V_2^n, \ldots, V_I^n)$
+    \end{itemize}
+    
+\end{frame}
+
+
+\begin{frame}{Grid and Time Structure}
+    \begin{center}
+    \begin{tikzpicture}[scale=0.8]
+        % Capital grid
+        \draw[->] (0,0) -- (6,0) node[right] {$k$};
+        \foreach \x in {0,1,2,3,4,5}
+        {
+            \draw (\x,0.1) -- (\x,-0.1) node[below] {$k_{\x}$};
+        }
+        
+        % Time iterations
+        \draw[->] (0,0) -- (0,4) node[above] {$n$};
+        \foreach \y in {0,1,2,3}
+        {
+            \draw (0.1,\y) -- (-0.1,\y) node[left] {$n=\y$};
+        }
+        
+        % Point labels
+        \node[circle,fill=red,inner sep=2pt] at (2,1) {};
+        \node[right] at (2.2,1) {$V_i^n$};
+        \node[circle,fill=blue,inner sep=2pt] at (2,2) {};
+        \node[right] at (2.2,2) {$V_i^{n+1}$};
+    \end{tikzpicture}
+    \end{center}
+    \begin{itemize}
+        \item $V_i^n$ represents value at capital level $i$ and iteration $n$
+        \item Full solution: $I \times N$ matrix where $N$ is final iteration
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Capital Grid Construction}
+    \begin{itemize}
+        \item First find steady state capital:
+        \[k_{ss} = \left(\frac{\alpha A}{r+\delta}\right)^{1/(1-\alpha)}\]
+        \item Create capital grid:
+        \begin{itemize}
+            \item $k_{min} = 0.001k_{ss}$
+            \item $k_{max} = 2k_{ss}$
+            \item $\Delta k = (k_{max}-k_{min})/(I-1)$
+            \item $k_i = k_{min} + (i-1)\Delta k$
+        \end{itemize}
+    \end{itemize}
+    \begin{code}
+    % Compute steady state
+    kss = (alpha*A/(rho+delta))^(1/(1-alpha));
+    
+
+    kmin = 0.001*kss;
+    
+    kmax = 2*kss;
+    
+    k = linspace(kmin, kmax, I)';
+    
+    dk = (kmax-kmin)/(I-1);
+    \end{code}
+\end{frame}
+
+\begin{frame}{Value Function and Derivatives}
+    Initial guess:
+    \begin{equation}
+        v_i^0 = \frac{(k_i^a)^{1-s}}{(1-s)r}
+    \end{equation}
+    
+    \begin{itemize}
+    \item Forward difference:
+        \[dV_{i,f} = (V_i^n)'_f = \frac{V_{i+1}^n - V_i^n}{\Delta k}\]
+        \item Backward difference:
+        \[dV_{i,b} = (V_i^n)'_b = \frac{V_i^n - V_{i-1}^n}{\Delta k}\]
+
+    \begin{itemize}
+        \item Boundary conditions:
+        \begin{itemize}
+            \item At $k_{min}$: $V'(k_{min}) = (Ak_{min}^{\alpha} - \delta k_{min})^{-s}$
+            \item At $k_{max}$: $V'(k_{max}) = (Ak_{max}^{\alpha} - \delta k_{max})^{-s}$
+        \end{itemize}
+    \end{itemize}
+    
+    \end{itemize}
+    
+    \begin{code}
+    tv = (k.**a).**(1-s)/(1-s)/r;
+
+    dVf(1:I-1) = diff(v)/dk;
+    
+    dVf(I) = (kmax**a - d*kmax)**(-s);
+    
+    dVb(2:I) = diff(v)/dk;
+
+    dVb(1) = (kmin**a - d*kmin)**(-s);
+    \end{code}
+
+
+
+\end{frame}
+
+\begin{frame}{Consumption and Drift Terms}
+    Consumption from derivatives:
+    \begin{align}
+        c_{i,f} &= (dV_{i,f})^{-1/s} \tag{5} \\
+        c_{i,b} &= (dV_{i,b})^{-1/s} \tag{6}
+    \end{align}
+    
+    Drift terms:
+    \begin{align}
+        \mu_f &= k^a - dk - c_{i,f} \tag{7} \\
+        \mu_b &= k^a - dk - c_{i,b} \tag{8}
+    \end{align}
+    
+    \begin{code}
+    cf = dVf.**(-1/s);
+    
+    muf = k.**a - d.*k - cf;
+    
+    cb = dVb.**(-1/s);
+    
+    mub = k.**a - d.*k - cb;
+    \end{code}
+\end{frame}
+
+\begin{frame}{Upwind Scheme}
+    Choose derivative based on drift:
+        \[V'(k) = \begin{cases}
+            V'_f(k) & \text{if } \mu(k) > 0\\
+            V'_b(k) & \text{if } \mu(k) < 0\\
+            V'_0(k) & \text{if } \mu(k) = 0
+        \end{cases}\]
+
+    \begin{equation}
+        dV_{upwind} = dV_f \cdot I_f + dV_b \cdot I_b + dV_0 \cdot I_0 \tag{9}
+    \end{equation}
+    where:
+    \begin{align}
+        I_f &= [\mu_f > 0] \tag{10} \\
+        I_b &= [\mu_b < 0] \tag{11} \\
+        I_0 &= 1 - I_f - I_b \tag{12}
+    \end{align}
+    
+    \begin{code}
+    If = muf > 0;
+    
+    Ib = mub < 0;
+    
+    I0 = (1-If-Ib);
+    
+    $dV_{Upwind} = dVf.*If + dVb.*Ib + dV0.*I0$;
+    \end{code}
+\end{frame}
+
+
+\begin{frame}{Matrix System Construction: Step 1}
+    Starting with the discretized HJB equation:
+    \begin{equation}
+        \frac{V_i^{n+1} - V_i^n}{\Delta} + r V_i^{n+1} = u(c_i^n) + (V_i^{n+1})'(k_i^\alpha - \delta k_i - c_i^n) \tag{1}
+    \end{equation}
+    
+    After applying upwind scheme:
+    \begin{align}
+        \frac{V_i^{n+1} - V_i^n}{\Delta} + r V_i^{n+1} &= u(c_i^n) + (V_{i,F}^{n+1})'(k_i^\alpha - \delta k_i - c_i^n)^+ \notag \\
+        &+ (V_{i,B}^{n+1})'(k_i^\alpha - \delta k_i - c_i^n)^- \tag{2}
+    \end{align}
+    
+\end{frame}
+
+\begin{frame}{Matrix System Construction: Step 2}
+    Substituting forward and backward finite differences and collecting terms for $V_i^{n+1}$ on the RHS:
+    \begin{equation}
+        \frac{V_i^{n+1} - V_i^n}{\Delta} + r V_i^{n+1} = u(c_i^n) + x_i V_{i-1}^{n+1} + y_i V_i^{n+1} + z_i V_{i+1}^{n+1} \tag{8}
+    \end{equation}
+    Define coefficients:
+    \begin{align}
+        x_i &= -\min(\mu_b,0)/\Delta k \tag{5} \\
+        y_i &= -\max(\mu_f,0)/\Delta k + \min(\mu_b,0)/\Delta k \tag{6} \\
+        z_i &= \max(\mu_f,0)/\Delta k \tag{7}
+    \end{align}
+    
+    \begin{code}
+    % Compute matrix coefficients
+    X = -min(mub,0)/dk;  % Lower diagonal
+    
+    Y = -max(muf,0)/dk + min(mub,0)/dk;  % Main diagonal
+    
+    Z = max(muf,0)/dk;  % Upper diagonal
+    \end{code}
+    
+    
+\end{frame}
+
+\begin{frame}{Matrix System Construction: Step 3}
+    Forms tridiagonal matrix $P^n$:
+    \begin{equation}
+        A^n = \begin{bmatrix}
+            y_1 & z_1 & 0 & \cdots & 0\\
+            x_2 & y_2 & z_2 & \cdots & 0\\
+            \vdots & \ddots & \ddots & \ddots & \vdots\\
+            0 & \cdots & x_{I-1} & y_{I-1} & z_{I-1}\\
+            0 & \cdots & 0 & x_I & y_I
+        \end{bmatrix} \tag{9}
+    \end{equation}
+    
+    \begin{code}
+    % Construct sparse tridiagonal matrix
+    A = spdiags(Y,0,I,I) + ...    % Main diagonal
+        spdiags(X(2:I),-1,I,I) + ... % Lower diagonal
+        spdiags([0;Z(1:I-1)],1,I,I); % Upper diagonal
+    \end{code}
+\end{frame}
+
+\begin{frame}{Matrix System}
+    Rearranging equation (8):
+    \begin{equation}
+        (\frac{1}{\Delta} + r)V_i^{n+1} - (x_i V_{i-1}^{n+1} + y_i V_i^{n+1} + z_i V_{i+1}^{n+1}) = u(c_i^n) + \frac{V_i^n}{\Delta} \tag{10}
+    \end{equation}
+    
+    In matrix form:
+    \begin{equation}
+        [(\frac{1}{\Delta} + r)I - A^n]V^{n+1} = U^n + \frac{V^n}{\Delta} \tag{11}
+    \end{equation}
+
+    
+    \begin{code}
+    % Construct sparse transition matrix
+    X = -min(mub,0)/dk;
+    
+    Y = -max(muf,0)/dk + min(mub,0)/dk;
+    
+    Z = max(muf,0)/dk;
+    
+    A = spdiags(Y,0,I,I) + spdiags(X(2:I),-1,I,I) + ...
+        spdiags([0;Z(1:I-1)],1,I,I);
+        
+    \end{code}
+\end{frame}
+
+\begin{frame}{Solving the Linear System}
+    Matrix equation to solve:
+    \begin{equation}
+        Bv^{n+1} = b \tag{16}
+    \end{equation}
+    where:
+    \begin{itemize}
+        \item $B = (r + \frac{1}{\Delta})I - A$
+        \item $b = u + \frac{v^n}{\Delta}$
+    \end{itemize}
+
+    \begin{code}
+    B = (r + 1/Delta)*speye(I) - A;
+    
+    b = u + v/Delta;
+    
+    \end{code}
+    The command \texttt{tv = B\textbackslash{}b} in MATLAB to obtain $v$.
+    \end{frame}
+
+
+
+\begin{frame}{Solution Algorithm}
+    \begin{itemize}
+        \item Main iteration steps:
+        \begin{enumerate}
+            \item Compute derivatives $(V_i^n)'_f$, $(V_i^n)'_b$
+            \item Calculate consumption $c_f^n$, $c_b^n$
+            \item Evaluate drift terms $\mu_f$, $\mu_b$
+            \item Form matrix $B$ and vector $b$
+            \item Solve $BV^{n+1} = b$
+            \item Check convergence: $\|V^{n+1} - V^n\| < \epsilon$
+        \end{enumerate}
+    \end{itemize}
+    \vspace{0.3cm}
+    \includegraphics[width=0.8\textwidth]{OneSctGrowth_FDM_result.png}
+\end{frame}
+
+
+
+
+
+\end{document}

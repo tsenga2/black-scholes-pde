@@ -1,0 +1,480 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\usecolortheme{whale}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{algorithm2e}
+\usepackage{tikz}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Configure listings for MATLAB code
+\lstset{
+    language=Matlab,
+    basicstyle=\footnotesize\ttfamily,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{green!60!black},
+    keywordstyle=\color{blue},
+    stringstyle=\color{purple},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{white},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    breakatwhitespace=false,
+    escapeinside={(*@}{@*)}
+}
+
+\title{Implicit Finite Difference Method: \\ Black-Scholes Option Pricing}
+\author{Tatsuro Senga}
+\date{}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+    \tableofcontents
+\end{frame}
+
+\section{Black-Scholes PDE}
+
+\begin{frame}{The Black-Scholes Equation}
+    \begin{align*}
+        \frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2S^2\frac{\partial^2 V}{\partial S^2} + (r-d)S\frac{\partial V}{\partial S} - rV = 0
+    \end{align*}
+    where:
+    \begin{itemize}
+        \item $V(S,t)$ is the option price
+        \item $S$ is the stock price
+        \item $t$ is time
+        \item $\sigma$ is volatility
+        \item $r$ is risk-free rate
+        \item $d$ is dividend yield
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Boundary Conditions}
+    For a call option:
+    \begin{align*}
+        V(S,T) &= \max(S-K,0) \quad \text{(Terminal condition)} \\
+        V(0,t) &= 0 \\
+        V(S_{\text{max}},t) &= S_{\text{max}}-K
+    \end{align*}
+    
+    For a put option:
+    \begin{align*}
+        V(S,T) &= \max(K-S,0) \quad \text{(Terminal condition)} \\
+        V(0,t) &= K \\
+        V(S_{\text{max}},t) &= 0
+    \end{align*}
+\end{frame}
+
+\section{Discretization}
+\begin{frame}{Grid Setup}
+    \begin{itemize}
+        \item Time discretization: $t_i = i\Delta t$, $i = 0,\ldots,N$
+        \item Stock price discretization: $S_j = S_{\text{min}} + j\Delta S$, $j = 0,\ldots,M$
+        \item $\Delta t = T/N$
+        \item $\Delta S = (S_{\text{max}}-S_{\text{min}})/M$
+    \end{itemize}
+    \begin{center}
+        \begin{tikzpicture}[scale=0.6]
+            \draw[->] (0,0) -- (6,0) node[right] {$S$};
+            \draw[->] (0,0) -- (0,4) node[above] {$t$};
+            \draw[step=1cm] (0,0) grid (5,3);
+            \node[below] at (2.5,0) {Stock price points};
+            \node[left] at (0,1.5) {Time steps};
+        \end{tikzpicture}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Finite Difference Approximations}
+    \begin{align*}
+        \frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2S^2\frac{\partial^2 V}{\partial S^2} + (r-d)S\frac{\partial V}{\partial S} - rV = 0
+    \end{align*}
+    
+    We approximate this using:
+    \begin{align*}
+        \frac{\partial V}{\partial t} &\approx \frac{V_j^{i+1} - V_j^i}{\Delta t} \\
+        \frac{\partial V}{\partial S} &\approx \frac{V_{j+1}^i - V_{j-1}^i}{2\Delta S} \\
+        \frac{\partial^2 V}{\partial S^2} &\approx \frac{V_{j+1}^i - 2V_j^i + V_{j-1}^i}{(\Delta S)^2}
+    \end{align*}
+    where $V_j^i$ represents the option value at $(S_j, t_i)$
+\end{frame}
+
+\begin{frame}{Implicit Scheme Derivation (1)}
+    Substituting finite differences into Black-Scholes PDE:
+    \begin{align*}
+        &\frac{V_j^{i+1} - V_j^i}{\Delta t} + \frac{1}{2}\sigma^2S_j^2\frac{V_{j+1}^i - 2V_j^i + V_{j-1}^i}{(\Delta S)^2} \\
+        &+ (r-d)S_j\frac{V_{j+1}^i - V_{j-1}^i}{2\Delta S} - rV_j^i = 0
+    \end{align*}
+    where $S_j = S_{\text{min}} + j\Delta S$
+\end{frame}
+
+\begin{frame}{Implicit Scheme Derivation (2)}
+    Rearranging terms:
+    \begin{align*}
+        &V_j^i - V_j^{i+1} + \frac{1}{2}\sigma^2j^2\Delta t(V_{j+1}^i - 2V_j^i + V_{j-1}^i) \\
+        &+ (r-d)j\frac{\Delta t}{2}(V_{j+1}^i - V_{j-1}^i) - r\Delta tV_j^i = 0
+    \end{align*}
+    Define coefficients:
+    \begin{align*}
+        a_j &= \frac{1}{2}(r-d)j\Delta t - \frac{1}{2}\sigma^2j^2\Delta t \\
+        b_j &= 1 + \sigma^2j^2\Delta t + r\Delta t \\
+        c_j &= -\frac{1}{2}(r-d)j\Delta t - \frac{1}{2}\sigma^2j^2\Delta t
+    \end{align*}
+\end{frame}
+
+\begin{frame}{Implicit Scheme Derivation (3)}
+    Final form:
+    \[a_jV_{j-1}^i + b_jV_j^i + c_jV_{j+1}^i = V_j^{i+1}\]
+    For all interior points $(j = 1,\ldots,M-1)$:
+    \begin{itemize}
+        \item Tridiagonal system at each time step
+        \item Solved backwards in time ($i = N-1,\ldots,0$)
+        \item Boundary conditions used at $j = 0$ and $j = M$
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Implicit Scheme}
+    \begin{itemize}
+        \item After substituting finite differences:
+        \begin{align*}
+            &a_j V_{i}^{j-1} + b_j V_{i}^j + c_j V_{i}^{j+1} = V_{i+1}^j
+        \end{align*}
+        where:
+        \begin{align*}
+            a_j &= \frac{1}{2}(r-d)j\Delta t - \frac{1}{2}\sigma^2j^2\Delta t \\
+            b_j &= 1 + \sigma^2j^2\Delta t + r\Delta t \\
+            c_j &= -\frac{1}{2}(r-d)j\Delta t - \frac{1}{2}\sigma^2j^2\Delta t
+        \end{align*}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Matrix Form}
+    \begin{itemize}
+        \item The system can be written as:
+        \[A\vec{V}_i = \vec{V}_{i+1}\]
+        \item Where $A$ is tridiagonal:
+        \[A = \begin{pmatrix}
+            b_1 & c_1 & 0 & \cdots & 0 \\
+            a_2 & b_2 & c_2 & \cdots & 0 \\
+            0 & a_3 & b_3 & \cdots & 0 \\
+            \vdots & \vdots & \vdots & \ddots & \vdots \\
+            0 & 0 & 0 & \cdots & b_M
+        \end{pmatrix}\]
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Solution Algorithm}
+    \begin{algorithm}[H]
+    \caption{Implicit Finite Difference Method}
+    \begin{algorithmic}[1]
+        \State Initialize grid and boundary conditions
+        \State Set terminal conditions $V_N^j$ for all $j$
+        \For{$i = N-1$ to $0$}
+            \State Form tridiagonal matrix $A$
+            \State Solve $A\vec{V}_i = \vec{V}_{i+1}$
+            \State Apply free boundary condition
+        \EndFor
+    \end{algorithmic}
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}[fragile]{Tridiagonal Coefficients}
+    The coefficients are:
+    \begin{align*}
+        a_j &= \frac{\Delta t}{2}[(r-d)j - \sigma^2j^2] \\
+        b_j &= 1 + \sigma^2j^2\Delta t + r\Delta t \\
+        c_j &= -\frac{\Delta t}{2}[(r-d)j + \sigma^2j^2]
+    \end{align*}
+    
+    In MATLAB code:
+    \begin{lstlisting}[language=Matlab]
+a = @(j) 0.5*(r-d)*j*dt - 0.5*volatility^2*j^2*dt;
+b = @(j) 1 + volatility^2*j^2*dt + r*dt;
+c = @(j) -0.5*(r-d)*j*dt - 0.5*volatility^2*j^2*dt;
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Matrix System}
+    At each time step, we solve:
+    \[
+    \begin{pmatrix}
+        b_1 & c_1 & 0 & \cdots & 0 \\
+        a_2 & b_2 & c_2 & \cdots & 0 \\
+        0 & a_3 & b_3 & \cdots & 0 \\
+        \vdots & \vdots & \vdots & \ddots & \vdots \\
+        0 & 0 & 0 & \cdots & b_M
+    \end{pmatrix}
+    \begin{pmatrix}
+        V_1^i \\
+        V_2^i \\
+        V_3^i \\
+        \vdots \\
+        V_M^i
+    \end{pmatrix}
+    =
+    \begin{pmatrix}
+        V_1^{i+1} - a_1V_0^i \\
+        V_2^{i+1} \\
+        V_3^{i+1} \\
+        \vdots \\
+        V_M^{i+1} - c_MV_{M+1}^i
+    \end{pmatrix}
+    \]
+\end{frame}
+
+\section{Implementation}
+
+\begin{frame}[fragile]{MATLAB Implementation}
+    Key steps in the code:
+    \begin{lstlisting}
+    % Create tridiagonal matrix
+    A = diag(a(2:M-1),-1) + diag(b(2:M)) 
+        + diag(c(1:M-2),1);
+    
+    % Set up right-hand side
+    v = surf(i+1,2:M)';
+    v(1) = v(1) - a(1)*surf(i,1);
+    v(end) = v(end) - c(M+1)*surf(i,M+1);
+    
+    % Solve system
+    surf(i,2:M) = A\v;
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Call Option Price}
+            \includegraphics[width=\textwidth]{OptionPrice.png}
+\end{frame}
+
+\begin{frame}{Call Option Price Profile and Time Value}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \vspace{-0.5cm}
+            \includegraphics[width=\textwidth]{OptionPriceSlice.png}
+            \vspace{0.3cm}
+            
+            \textbf{Option Price Components:}
+            \begin{itemize}
+                \item \textcolor{blue}{Blue line}: Total option value
+                    \begin{itemize}
+                        \item = Intrinsic value + Time value
+                    \end{itemize}
+                \item \textcolor{red}{Red dashed}: Intrinsic value
+                    \begin{itemize}
+                        \item = max$(S-K, 0)$
+                    \end{itemize}
+                \item Time value = Blue $-$ Red
+            \end{itemize}
+        \end{column}
+        
+        \begin{column}{0.5\textwidth}
+            \textbf{Time Value Analysis:}
+            \begin{itemize}
+                \item Out-of-money ($S < K$):
+                    \begin{itemize}
+                        \item Pure time value
+                        \item Decays with distance from $K$
+                    \end{itemize}
+                \item At-the-money ($S = K = 50$):
+                    \begin{itemize}
+                        \item Maximum time value
+                        \item ≈ $0.4K\sigma\sqrt{T}$ (rule of thumb)
+                    \end{itemize}
+                \item In-the-money ($S > K$):
+                    \begin{itemize}
+                        \item Time value decreases
+                        \item Approaches intrinsic value
+                    \end{itemize}
+            \end{itemize}
+            
+            \textbf{Parameters:} $T = 1$ year, $\sigma = 40\%$, $r = 2\%$, $K = 50$
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\section{Numerical Considerations}
+
+\begin{frame}{Grid Selection}
+    Important factors:
+    \begin{itemize}
+        \item Choice of $S_{\text{max}}$: typically 3-4 times strike price
+        \item Number of time steps ($N$)
+        \item Number of stock price steps ($M$)
+        \item Trade-off between accuracy and computational cost
+    \end{itemize}
+    
+    Recommendation:
+    \begin{itemize}
+        \item Start with $N = M = 100$
+        \item Increase if more accuracy needed
+        \item Check convergence by doubling grid points
+    \end{itemize}
+\end{frame}
+
+\section{Detailed Implementation}
+
+
+\begin{frame}[fragile]{Function Definition and Grid Setup}
+    \begin{lstlisting}[language=Matlab]
+function [t_vals,S_vals,surf] = black_scholes_naive_implicit(...
+    N,M,Smin,Smax,T,K,volatility,r,d,is_call)
+% Initialize the solution surface
+surf = zeros(1+N,1+M);  % Size: (time steps + 1) × (price steps + 1)
+    \end{lstlisting}
+    
+    Parameters explanation:
+    \begin{itemize}
+        \item \texttt{N}: Number of time steps
+        \item \texttt{M}: Number of stock price steps
+        \item \texttt{Smin, Smax}: Stock price range
+        \item \texttt{T}: Time to maturity
+        \item \texttt{K}: Strike price
+        \item \texttt{volatility, r, d}: Market parameters
+        \item \texttt{is\_call}: Option type flag
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Grid Construction}
+    \begin{lstlisting}[language=Matlab]
+% Determine step sizes
+dt = T/N;      % Time step size
+dS = (Smax-Smin)/M;  % Stock price step size
+
+% Create grid points
+t_vals = 0:dt:T;     % Time points array
+S_vals = Smin:dS:Smax;  % Stock price array
+    \end{lstlisting}
+    
+    Grid Details:
+    \begin{itemize}
+        \item Time grid: $[0, T]$ divided into $N$ steps
+        \item Stock price grid: $[S_{min}, S_{max}]$ divided into $M$ steps
+        \item \texttt{t\_vals}: Vector of length $N+1$
+        \item \texttt{S\_vals}: Vector of length $M+1$
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Boundary Conditions}
+    \begin{lstlisting}[language=Matlab]
+% Set boundary conditions
+if is_call
+    surf(:,1) = 0;            % At S = Smin
+    surf(:,end) = Smax-K;     % At S = Smax
+    surf(end,:) = payoff(S_vals,K,is_call);  % At T
+else
+    surf(:,1) = K;            % At S = Smin
+    surf(:,end) = 0;          % At S = Smax
+    surf(end,:) = payoff(S_vals,K,is_call);  % At T
+end
+    \end{lstlisting}
+    
+    Explanation:
+    \begin{itemize}
+        \item \texttt{surf(:,1)}: Left boundary ($S = S_{min}$)
+        \item \texttt{surf(:,end)}: Right boundary ($S = S_{max}$)
+        \item \texttt{surf(end,:)}: Terminal condition at $T$
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Tridiagonal System Setup}
+    \begin{lstlisting}[language=Matlab]
+% Define tridiagonal matrix coefficients
+a = @(j) 0.5*(r-d)*j*dt - 0.5*volatility^2*j^2*dt;  % Lower
+b = @(j) 1 + volatility^2*j^2*dt + r*dt;            % Main
+c = @(j) -0.5*(r-d)*j*dt - 0.5*volatility^2*j^2*dt; % Upper
+    \end{lstlisting}
+    
+    These coefficients come from discretizing the PDE:
+    \begin{itemize}
+        \item \texttt{a(j)}: Coefficient of $V_{j-1}^i$ (lower diagonal)
+        \item \texttt{b(j)}: Coefficient of $V_j^i$ (main diagonal)
+        \item \texttt{c(j)}: Coefficient of $V_{j+1}^i$ (upper diagonal)
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Time-Stepping Loop}
+    \begin{lstlisting}[language=Matlab]
+for i = N:-1:1  % Backward in time
+    % Construct tridiagonal matrix
+    A = diag(a(2:M-1),-1) + diag(b(2:M)) + ...
+        diag(c(1:M-2),1);
+    
+    % Set up right-hand side vector
+    v = surf(i+1,2:M)';
+    v(1) = v(1) - a(1)*surf(i,1);        % Left boundary
+    v(end) = v(end) - c(M+1)*surf(i,M+1);  % Right boundary
+    
+    % Solve linear system
+    surf(i,2:M) = A\v;
+    \end{lstlisting}
+    
+    At each time step:
+    \begin{itemize}
+        \item Build tridiagonal matrix \texttt{A}
+        \item Construct RHS vector \texttt{v} with boundary adjustments
+        \item Solve system $AV^i = v$ for interior points
+    \end{itemize}
+\end{frame}
+
+%\begin{frame}[fragile]{American Option Early Exercise}
+%    \begin{lstlisting}[language=Matlab]
+% Enforce free boundary condition (early exercise)
+%surf(i,2:M) = max(surf(i,2:M), ...
+%    payoff(S_vals(2:M),K,is_call));
+%    \end{lstlisting}
+    
+%    Early Exercise Feature:
+%    \begin{itemize}
+%        \item Compare continuation value with immediate exercise
+%        \item Take maximum of the two values
+%        \item This makes the option American-style
+%        \item Without this line, we get European options
+%    \end{itemize}
+    
+%    Note: This is called a free boundary condition because the early exercise boundary is determined as part of the solution.
+%\end{frame}
+
+\begin{frame}{Matrix Structure Visualization}
+    Example for $M=5$:
+    \[
+    \begin{pmatrix}
+        b_2 & c_2 & 0 & 0 \\
+        a_3 & b_3 & c_3 & 0 \\
+        0 & a_4 & b_4 & c_4 \\
+        0 & 0 & a_5 & b_5
+    \end{pmatrix}
+    \begin{pmatrix}
+        V_2^i \\
+        V_3^i \\
+        V_4^i \\
+        V_5^i
+    \end{pmatrix}
+    =
+    \begin{pmatrix}
+        V_2^{i+1} - a_2V_1^i \\
+        V_3^{i+1} \\
+        V_4^{i+1} \\
+        V_5^{i+1} - c_5V_6^i
+    \end{pmatrix}
+    \]
+    
+    \begin{itemize}
+        \item Matrix is tridiagonal
+        \item System solved efficiently using backslash operator
+        \item First and last rows modified by boundary conditions
+    \end{itemize}
+\end{frame}
+
+\end{document}
