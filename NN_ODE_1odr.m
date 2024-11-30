@@ -6,11 +6,14 @@ clear all; close all;
 % Initial condition: Ψ(0) = 0.1
 % Domain: x ∈ [0, 2]
 
+%% Initial condition
+A = 0.1;
+
 %% Network Parameters
 N = 5;          % Number of hidden neurons
 learning_rate = 0.1;
-max_epochs = 10000;
-tolerance = 1e-6;
+max_its = 10000;
+tol = 1e-5;
 
 %% Initialize Network Parameters
 % Random initialization with Xavier/Glorot initialization
@@ -20,41 +23,43 @@ theta = randn(N, 1) * sqrt(2/1);  % Hidden biases
 w = randn(N, 1) * sqrt(2/N);  % Output weights
 
 %% Generate Training Points
-n_points = 50;
-x_train = linspace(0, 2, n_points)';
+nx = 50;
+xgrid = linspace(0, 2, nx)';
 
 %% Training Loop
+tic;
 fprintf('Training Neural Network...\n');
-for epoch = 1:max_epochs
+for it = 1:max_its
     % Forward Pass
-    [Psi, dPsi] = forward_pass(x_train, v, theta, w, 0.1);
+    [Psi, dPsi] = forward_pass(xgrid, v, theta, w, A);
     
-    % Compute Target (from ODE)
-    target = exp(-2*x_train) - 2*Psi;
+    % Compute Target (from RHS of ODE)
+    target = exp(-2*xgrid) - 2*Psi;
     
     % Compute Error
-    E = mean((dPsi - target).^2);
+    error = mean((dPsi - target).^2);
     
-    if mod(epoch, 1000) == 0
-        fprintf('Epoch %d: Error = %.6f\n', epoch, E);
+    if mod(it, 1000) == 0
+        fprintf('it %d: Error = %.6f\n', it, error);
     end
     
-    if E < tolerance
+    if error < tol
         break;
     end
     
     % Backpropagation (using numerical gradients for simplicity)
-    [grad_v, grad_theta, grad_w] = compute_gradients(x_train, v, theta, w, target, 0.1);
+    [grad_v, grad_theta, grad_w] = compute_gradients(xgrid, v, theta, w, target, A);
     
     % Update Parameters
     v = v - learning_rate * grad_v;
     theta = theta - learning_rate * grad_theta;
     w = w - learning_rate * grad_w;
 end
-
+toc;
 %% Evaluate and Plot Results
-x_test = linspace(0, 2, 50)';
-[Psi_nn, ~] = forward_pass(x_test, v, theta, w, 0.1);
+nx_test = 50;
+x_test = linspace(0, 2, nx_test)';
+[Psi_nn, ~] = forward_pass(x_test, v, theta, w, A);
 
 % Compute analytical solution
 Psi_analytical = exp(-2*x_test).*(x_test + 0.1);
@@ -62,7 +67,6 @@ Psi_analytical = exp(-2*x_test).*(x_test + 0.1);
 % Plotting
 figure('Position', [100, 100, 1200, 400]);
 
-subplot(1,2,1);
 plot(x_test, Psi_nn, 'b-', 'LineWidth', 2);
 hold on;
 plot(x_test, Psi_analytical, 'r--', 'LineWidth', 2);
@@ -72,7 +76,7 @@ title('Solution Comparison');
 legend('Neural Network', 'Analytical');
 grid on;
 
-subplot(1,2,2);
+figure('Position', [100, 100, 1200, 400]);
 error = abs(Psi_nn - Psi_analytical);
 plot(x_test, error, 'k-', 'LineWidth', 2);
 xlabel('x');
